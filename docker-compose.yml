@@ -1,0 +1,44 @@
+services:
+  support-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: order-support-agent
+    ports:
+      - "8504:8504"
+
+    # Load API keys from your local .env file.
+    # These are injected as environment variables — never baked into the image.
+    env_file:
+      - .env
+      
+    environment:
+      - DB_PATH=/app/data/support_agent.db
+
+    # Persist runtime-generated data outside the container lifecycle.
+    # If the container is removed and recreated, your DB and vector store survive.
+    volumes:
+      - agent-db:/app/data
+      - agent-chroma:/app/chroma_store
+      - agent-logs:/app/logs
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8504/_stcore/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# Named volumes — managed by Docker, persisted across container restarts
+volumes:
+  agent-db:
+  agent-chroma:
+  agent-logs:

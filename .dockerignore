@@ -1,0 +1,33 @@
+# Virtual environment — dependencies are installed fresh inside the image
+.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Version control
+.git/
+.gitignore
+
+# Type checking cache
+.mypy_cache/
+
+# Runtime-generated data — mounted as Docker volumes instead
+chroma_store/
+support_agent.db
+logs/
+
+# Secrets — passed as environment variables, never baked into the image
+.env
+
+# Development tools
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# OS artefacts
+.DS_Store
+Thumbs.db
