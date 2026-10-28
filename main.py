@@ -5,9 +5,10 @@ Application entrypoint for the Multi-Step Order Support Agent.
 
 Startup sequence:
   1. Configure logging (console INFO+, file DEBUG+ for full trace).
-  2. Initialise the SQLite database (schema + seed data).
-  3. Initialise the RAG knowledge base (embed policies into ChromaDB).
-  4. Launch the interactive CLI loop.
+  2. Validate required API key configuration.
+  3. Initialise the SQLite database (schema + seed data).
+  4. Initialise the RAG knowledge base (embed policies into ChromaDB).
+  5. Launch the interactive CLI loop.
 
 Usage:
     python main.py
@@ -27,6 +28,7 @@ from agent import ask
 from database import init_db
 from models import AgentResponse
 from rag import init_rag
+from config import validate_api_keys
 
 load_dotenv()
 
@@ -104,9 +106,12 @@ async def _startup() -> None:
     Initialise all subsystems before the agent loop begins.
 
     Raises:
-        EnvironmentError: Propagated from init_rag() if VOYAGE_API_KEY is unset.
-        SystemExit: If any startup step fails unrecoverably.
+        EnvironmentError: If required API keys are missing or a subsystem
+            reports a configuration error.
     """
+    logger.info("Validating API key configuration...")
+    validate_api_keys()
+
     logger.info("Starting up — initialising database...")
     await init_db()
 
@@ -133,8 +138,8 @@ async def _run() -> None:
 
     try:
         await _startup()
-    except EnvironmentError as exc:
-        logger.error(f"Startup failed: {exc}")
+    except Exception:
+        logger.exception("Startup failed")
         sys.exit(1)
 
     print()

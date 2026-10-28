@@ -3,12 +3,14 @@
 import re
 import tempfile
 import unittest
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 import aiosqlite
 
 import database
+from demo_clock import DEMO_NOW
 from database import OrderNotFoundError, create_support_ticket, get_order, get_ticket_for_order, init_db
 
 
@@ -37,6 +39,27 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(order.order_status, "Processing")
         self.assertEqual(order.product_category, "Electronics")
         self.assertIsNone(order.waybill_number)
+        self.assertEqual(order.estimated_delivery, DEMO_NOW + timedelta(days=5))
+
+    async def test_refreshes_sample_dates_without_deleting_tickets(self) -> None:
+        ticket = await create_support_ticket("ORD-1003", "Keep this ticket")
+        old_date = "2020-01-01T00:00:00+00:00"
+        async with aiosqlite.connect(self._db_path) as connection:
+            await connection.execute(
+                "UPDATE orders SET created_at = ?, estimated_delivery = ? WHERE order_number = ?",
+                (old_date, old_date, "ORD-1003"),
+            )
+            await connection.commit()
+
+        await init_db()
+
+        refreshed_order = await get_order("ORD-1003")
+        saved_ticket = await get_ticket_for_order("ORD-1003")
+        self.assertEqual(refreshed_order.created_at, DEMO_NOW - timedelta(days=5))
+        self.assertEqual(refreshed_order.estimated_delivery, DEMO_NOW + timedelta(days=5))
+        self.assertEqual(refreshed_order.order_status, "Shipped")
+        self.assertIsNotNone(saved_ticket)
+        self.assertEqual(saved_ticket.ticket_id, ticket.ticket_id)
 
     async def test_get_order_raises_for_unknown_order(self) -> None:
         with self.assertRaisesRegex(OrderNotFoundError, "ORD-missing"):

@@ -4,6 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
+from demo_clock import DEMO_NOW
 import mock_logistics_api as logistics_api
 from mock_logistics_api import WaybillNotFoundError, get_tracking_info
 from models import TrackingEvent
@@ -11,7 +12,7 @@ from models import TrackingEvent
 
 class GetTrackingInfoTests(unittest.IsolatedAsyncioTestCase):
     async def test_returns_tracking_events_and_latest_location(self) -> None:
-        now = datetime(2026, 8, 29, tzinfo=timezone.utc)
+        now = DEMO_NOW
         with patch.object(logistics_api, "datetime", Mock(now=Mock(return_value=now))):
             result = await get_tracking_info("WB-5001")
 
@@ -19,7 +20,7 @@ class GetTrackingInfoTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result.events), 4)
         self.assertEqual(result.current_location, "Port Harcourt Delivery Hub")
         self.assertFalse(result.is_delayed)
-        self.assertEqual(result.estimated_delivery, datetime(2026, 8, 30, 18, tzinfo=timezone.utc))
+        self.assertEqual(result.estimated_delivery, DEMO_NOW + timedelta(days=5))
 
     async def test_raises_for_unknown_waybill(self) -> None:
         with self.assertRaisesRegex(WaybillNotFoundError, "WB-unknown"):
@@ -55,7 +56,7 @@ class GetTrackingInfoTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(past_threshold.is_delayed)
 
     async def test_delivered_package_is_never_marked_delayed(self) -> None:
-        now = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        now = DEMO_NOW
         with patch.object(logistics_api, "datetime", Mock(now=Mock(return_value=now))):
             result = await get_tracking_info("WB-5003")
 

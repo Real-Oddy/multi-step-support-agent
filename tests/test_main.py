@@ -74,6 +74,9 @@ class StartupTests(IsolatedAsyncioTestCase):
     async def test_startup_initializes_database_before_rag(self) -> None:
         calls = []
 
+        def validate_keys() -> None:
+            calls.append("api_keys")
+
         async def initialize_db() -> None:
             calls.append("database")
 
@@ -81,15 +84,17 @@ class StartupTests(IsolatedAsyncioTestCase):
             calls.append("rag")
 
         with (
+            patch.object(cli, "validate_api_keys", new=validate_keys),
             patch.object(cli, "init_db", new=initialize_db),
             patch.object(cli, "init_rag", new=initialize_rag),
         ):
             await cli._startup()
 
-        self.assertEqual(calls, ["database", "rag"])
+        self.assertEqual(calls, ["api_keys", "database", "rag"])
 
     async def test_startup_propagates_environment_error(self) -> None:
         with (
+            patch.object(cli, "validate_api_keys"),
             patch.object(cli, "init_db", new=AsyncMock()),
             patch.object(cli, "init_rag", new=AsyncMock(side_effect=EnvironmentError("missing key"))),
         ):
@@ -141,6 +146,17 @@ class RunLoopTests(IsolatedAsyncioTestCase):
     async def test_startup_environment_error_exits_with_status_one(self) -> None:
         with (
             patch.object(cli, "_startup", new=AsyncMock(side_effect=EnvironmentError("missing key"))),
+            patch.object(cli.sys, "exit", side_effect=SystemExit) as exit_process,
+            redirect_stdout(io.StringIO()),
+        ):
+            with self.assertRaises(SystemExit):
+                await cli._run()
+
+        exit_process.assert_called_once_with(1)
+
+    async def test_startup_database_error_exits_with_status_one(self) -> None:
+        with (
+            patch.object(cli, "_startup", new=AsyncMock(side_effect=RuntimeError("database unavailable"))),
             patch.object(cli.sys, "exit", side_effect=SystemExit) as exit_process,
             redirect_stdout(io.StringIO()),
         ):

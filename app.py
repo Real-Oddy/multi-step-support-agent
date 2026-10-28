@@ -22,6 +22,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from agent import ask
+from config import validate_api_keys
 from database import init_db
 from models import AgentResponse
 from rag import init_rag
@@ -46,7 +47,8 @@ st.set_page_config(
 
 @st.cache_resource(show_spinner="Initialising systems...")
 def _init_systems() -> bool:
-    """Run DB and RAG startup exactly once per Streamlit server lifetime."""
+    """Validate configuration and initialize systems once per server lifetime."""
+    validate_api_keys()
     asyncio.run(init_db())
     asyncio.run(init_rag())
     return True
@@ -236,7 +238,7 @@ def main() -> None:
     except EnvironmentError as exc:
         st.error(
             f"**Startup failed:** {exc}\n\n"
-            "Check that `ANTHROPIC_API_KEY` and `VOYAGE_API_KEY` are set in your `.env` file.",
+            "Check that `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are set in your `.env` file.",
             icon="🚨",
         )
         st.stop()

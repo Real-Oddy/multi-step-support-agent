@@ -1,12 +1,13 @@
-"""Run unit tests with external RAG services replaced by local test doubles."""
+"""Run the test suite with external RAG services replaced by local test doubles."""
 
 from __future__ import annotations
 
 import sys
-import unittest
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import Mock
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,10 +27,4 @@ def _install_external_service_stubs() -> None:
 
 if __name__ == "__main__":
     _install_external_service_stubs()
-    suite = unittest.defaultTestLoader.discover(
-        start_dir=str(TESTS),
-        pattern="test*.py",
-        top_level_dir=str(TESTS),
-    )
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
-    raise SystemExit(not result.wasSuccessful())
+    raise SystemExit(pytest.main(["-v", str(TESTS)]))
