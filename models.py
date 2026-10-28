@@ -13,7 +13,7 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -103,7 +103,7 @@ class SupportTicket(BaseModel):
         description="Current ticket status: 'Open', 'In Progress', 'Resolved', or 'Closed'."
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp when the ticket was created."
     )
 
