@@ -101,11 +101,13 @@ class InitSystemsTests(unittest.TestCase):
 
         with (
             patch.object(support_app.asyncio, "run", side_effect=discard_coroutine),
+            patch.object(support_app, "validate_api_keys") as mock_validator,
             patch.object(support_app, "init_db", new=init_db),
             patch.object(support_app, "init_rag", new=init_rag),
         ):
             result = support_app._init_systems()
 
+        mock_validator.assert_called_once_with()
         self.assertTrue(result)
         self.assertEqual(run_calls, ["init_db", "init_rag"])
 

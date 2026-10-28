@@ -39,7 +39,13 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(order.order_status, "Processing")
         self.assertEqual(order.product_category, "Electronics")
         self.assertIsNone(order.waybill_number)
-        self.assertEqual(order.estimated_delivery, DEMO_NOW + timedelta(days=5))
+        self.assertIsNone(order.estimated_delivery)
+
+        shipped_order = await get_order("ORD-1003")
+        self.assertEqual(
+            shipped_order.estimated_delivery,
+            DEMO_NOW + timedelta(days=5),
+        )
 
     async def test_refreshes_sample_dates_without_deleting_tickets(self) -> None:
         ticket = await create_support_ticket("ORD-1003", "Keep this ticket")
