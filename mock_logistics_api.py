@@ -4,10 +4,9 @@ mock_logistics_api.py
 Simulates a third-party logistics/delivery tracking API.
 
 In production this would be an async HTTP call to a carrier's REST API.
-Here every waybill has a fixed, realistic set of checkpoint events and an
-estimated delivery date.  The `is_delayed` flag is computed at call-time
-against the live system clock so the business-rule threshold (> 3 days
-overdue) is always evaluated accurately.
+Here every waybill has a realistic set of checkpoint events and an estimated
+delivery date relative to the shared demo clock. The `is_delayed` flag is
+computed at call-time against the live system clock.
 """
 
 from __future__ import annotations
@@ -16,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from loguru import logger
 
+from demo_clock import DEMO_NOW
 from models import TrackingEvent, TrackingResult
 
 # ---------------------------------------------------------------------------
@@ -39,9 +39,9 @@ class WaybillNotFoundError(Exception):
 # ---------------------------------------------------------------------------
 
 
-def _dt(iso: str) -> datetime:
-    """Parse an ISO-8601 string into a timezone-aware datetime."""
-    return datetime.fromisoformat(iso)
+def _offset(days: int, *, hours: int = 0, minutes: int = 0) -> datetime:
+    """Return a timestamp relative to the shared sample-data clock."""
+    return DEMO_NOW + timedelta(days=days, hours=hours, minutes=minutes)
 
 
 # ---------------------------------------------------------------------------
@@ -55,80 +55,80 @@ def _dt(iso: str) -> datetime:
 
 _TRACKING_DATA: dict[str, dict] = {
     "WB-5001": {
-        "estimated_delivery": _dt("2026-08-30T18:00:00+00:00"),
+        "estimated_delivery": _offset(5),
         "events": [
             TrackingEvent(
-                timestamp=_dt("2026-08-18T10:00:00+00:00"),
+                timestamp=_offset(-5),
                 location="Lagos Sorting Facility",
                 status="Package picked up from seller",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-19T08:30:00+00:00"),
+                timestamp=_offset(-4, hours=2),
                 location="Lagos Hub",
                 status="Package processed at origin hub",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-20T14:00:00+00:00"),
+                timestamp=_offset(-3, hours=5),
                 location="Abuja Transit Centre",
                 status="In transit to destination city",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-22T09:00:00+00:00"),
+                timestamp=_offset(-1, hours=1),
                 location="Port Harcourt Delivery Hub",
                 status="Arrived at local delivery hub — awaiting dispatch",
             ),
         ],
     },
     "WB-5002": {
-        "estimated_delivery": _dt("2026-08-19T18:00:00+00:00"),
+        "estimated_delivery": _offset(-5),
         "events": [
             TrackingEvent(
-                timestamp=_dt("2026-08-10T09:00:00+00:00"),
+                timestamp=_offset(-10),
                 location="Kano Sorting Facility",
                 status="Package picked up from seller",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-11T11:00:00+00:00"),
+                timestamp=_offset(-9, hours=2),
                 location="Kano Hub",
                 status="Package processed at origin hub",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-13T15:00:00+00:00"),
+                timestamp=_offset(-7, hours=5),
                 location="Apapa Port, Lagos",
                 status="Package held at customs — documentation under review",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-17T10:00:00+00:00"),
+                timestamp=_offset(-5, hours=1),
                 location="Apapa Port, Lagos",
                 status="Customs clearance pending — awaiting authority release",
             ),
         ],
     },
     "WB-5003": {
-        "estimated_delivery": _dt("2026-08-22T18:00:00+00:00"),
+        "estimated_delivery": _offset(-2),
         "events": [
             TrackingEvent(
-                timestamp=_dt("2026-08-12T08:00:00+00:00"),
+                timestamp=_offset(-7),
                 location="Ibadan Sorting Facility",
                 status="Package picked up from seller",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-13T10:00:00+00:00"),
+                timestamp=_offset(-6, hours=2),
                 location="Ibadan Hub",
                 status="Package processed at origin hub",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-15T14:00:00+00:00"),
+                timestamp=_offset(-4, hours=5),
                 location="Lagos Transit Centre",
                 status="In transit to destination city",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-20T09:00:00+00:00"),
+                timestamp=_offset(-3, hours=1),
                 location="Enugu Delivery Hub",
                 status="Out for delivery",
             ),
             TrackingEvent(
-                timestamp=_dt("2026-08-20T14:30:00+00:00"),
+                timestamp=_offset(-2, hours=6),
                 location="Enugu",
                 status="Package delivered — signed by recipient",
             ),

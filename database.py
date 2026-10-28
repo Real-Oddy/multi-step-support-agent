@@ -5,7 +5,7 @@ SQLite database layer for the Multi-Step Order Support Agent.
 
 Responsibilities:
   - Schema creation (idempotent — safe to call on every startup).
-  - Seeding deterministic mock order data on first run.
+  - Seeding mock order data on first run and refreshing sample dates on restart.
   - Async CRUD operations for `orders` and `support_tickets` tables.
 
 All public functions are async and use aiosqlite.
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 from typing import AsyncIterator
@@ -24,6 +24,7 @@ from typing import AsyncIterator
 import aiosqlite
 from loguru import logger
 
+from demo_clock import DEMO_NOW
 from models import OrderRecord, SupportTicket
 
 # ---------------------------------------------------------------------------
@@ -78,7 +79,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
 """
 
 # ---------------------------------------------------------------------------
-# Seed data — five deterministic mock orders covering all business-rule paths
+# Seed data — five mock orders covering all business-rule paths
 # ---------------------------------------------------------------------------
 
 _SEED_ORDERS: list[dict] = [
@@ -90,7 +91,7 @@ _SEED_ORDERS: list[dict] = [
         "order_status": "Processing",
         "waybill_number": None,
         "product_category": "Electronics",
-        "created_at": "2026-08-20T09:00:00+00:00",
+        "created_at": (DEMO_NOW - timedelta(days=2)).isoformat(),
         "estimated_delivery": None,
     },
     # NOT cancellable: Processing but payment already Paid
@@ -101,7 +102,7 @@ _SEED_ORDERS: list[dict] = [
         "order_status": "Processing",
         "waybill_number": None,
         "product_category": "Clothing",
-        "created_at": "2026-08-21T10:00:00+00:00",
+        "created_at": (DEMO_NOW - timedelta(days=3)).isoformat(),
         "estimated_delivery": None,
     },
     # Shipped — on time (ETA in the future)
@@ -112,8 +113,8 @@ _SEED_ORDERS: list[dict] = [
         "order_status": "Shipped",
         "waybill_number": "WB-5001",
         "product_category": "Electronics",
-        "created_at": "2026-08-18T08:00:00+00:00",
-        "estimated_delivery": "2026-08-30T18:00:00+00:00",
+        "created_at": (DEMO_NOW - timedelta(days=5)).isoformat(),
+        "estimated_delivery": (DEMO_NOW + timedelta(days=5)).isoformat(),
     },
     # Shipped — DELAYED (ETA passed by > 3 days; triggers auto-escalation)
     {
@@ -123,8 +124,8 @@ _SEED_ORDERS: list[dict] = [
         "order_status": "Shipped",
         "waybill_number": "WB-5002",
         "product_category": "Furniture",
-        "created_at": "2026-08-10T08:00:00+00:00",
-        "estimated_delivery": "2026-08-19T18:00:00+00:00",  # 7 days overdue
+        "created_at": (DEMO_NOW - timedelta(days=10)).isoformat(),
+        "estimated_delivery": (DEMO_NOW - timedelta(days=5)).isoformat(),
     },
     # Delivered — no further action required
     {
@@ -134,8 +135,8 @@ _SEED_ORDERS: list[dict] = [
         "order_status": "Delivered",
         "waybill_number": "WB-5003",
         "product_category": "Clothing",
-        "created_at": "2026-08-12T07:00:00+00:00",
-        "estimated_delivery": "2026-08-22T18:00:00+00:00",
+        "created_at": (DEMO_NOW - timedelta(days=7)).isoformat(),
+        "estimated_delivery": (DEMO_NOW - timedelta(days=2)).isoformat(),
     },
 ]
 
@@ -205,8 +206,9 @@ async def init_db() -> None:
     Initialise the database.
 
     Creates the `orders` and `support_tickets` tables if they do not already
-    exist, then seeds mock order data on the very first run.  Safe to call
-    on every application startup — fully idempotent.
+    exist, then seeds mock order data on the first run. On later startups,
+    refreshes only dates for known sample orders, preserving tickets and other
+    order fields.
     """
     async with _get_connection() as conn:
         await conn.execute(_CREATE_ORDERS_TABLE)
@@ -233,7 +235,21 @@ async def init_db() -> None:
             await conn.commit()
             logger.info(f"Seeded {len(_SEED_ORDERS)} mock orders.")
         else:
-            logger.debug(f"Skipping seed — database already has {count} order(s).")
+            # Refresh only dates on the known sample orders. This keeps their
+            # timeline current without deleting orders or support tickets.
+            await conn.executemany(
+                """
+                UPDATE orders
+                SET created_at = :created_at,
+                    estimated_delivery = :estimated_delivery
+                WHERE order_number = :order_number
+                """,
+                _SEED_ORDERS,
+            )
+            await conn.commit()
+            logger.debug(
+                f"Refreshed sample order dates; database has {count} order(s)."
+            )
 
 
 async def get_order(order_number: str) -> OrderRecord:
